@@ -1,0 +1,25 @@
+{
+  "review_id": "example-payment-events-redesign",
+  "title": "Internal payment event processing redesign",
+  "problem_statement": "Payment status change events (authorized, captured, refunded) are currently emitted directly from the payment service to three downstream consumers over point-to-point HTTP callbacks. Adding a new consumer requires a code change and redeploy of the payment service, and a slow or unavailable consumer can back up the payment service's own request handling.",
+  "proposed_solution": "Publish payment status change events to a shared internal event bus that consumers subscribe to independently. The payment service publishes once per event and no longer calls consumers directly; the event bus retains events for 24 hours so a consumer that is briefly unavailable can catch up without the payment service resending anything.",
+  "constraints": [
+    "Must reuse the existing internal event bus platform rather than introducing a new one.",
+    "Payment service publish latency must not regress beyond the current callback latency."
+  ],
+  "assumptions": [
+    "All three current consumers can migrate to bus subscriptions within one release cycle.",
+    "The event bus already provides at-least-once delivery."
+  ],
+  "alternatives_considered": [
+    "Keep direct callbacks but add a retry queue in front of each consumer.",
+    "Introduce a dedicated notification microservice that fans out to consumers on the payment service's behalf."
+  ],
+  "affected_components": [
+    "payment-service",
+    "internal-event-bus",
+    "fraud-review-consumer",
+    "accounting-export-consumer",
+    "customer-notification-consumer"
+  ]
+}

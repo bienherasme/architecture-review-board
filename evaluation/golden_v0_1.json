@@ -1,0 +1,161 @@
+{
+  "dataset_id": "architecture-review-board-golden",
+  "version": "0.1",
+  "cases": [
+    {
+      "case_id": "reliability-single-instance-payment-state",
+      "description": "Single-instance in-memory payment authorization state with no persisted checkpoint.",
+      "request": {
+        "review_id": "reliability-single-instance-payment-state",
+        "title": "Single-instance payment authorization state",
+        "problem_statement": "Payment authorization state is held in application memory on one instance. A crash or redeploy of that instance loses in-flight authorization state, and there is no persisted checkpoint to recover from.",
+        "proposed_solution": "Keep the existing single-instance in-memory design and add a health check endpoint so orchestration can restart the instance automatically after a crash.",
+        "affected_components": ["payment-authorization-service"],
+        "assumptions": ["Traffic volume remains low enough for one instance to handle load."]
+      },
+      "acceptable_decisions": ["request_changes"],
+      "expected_risks": [
+        {
+          "risk_id": "reliability-single-point-of-failure",
+          "reviewer": "reliability",
+          "anchor_groups": [
+            ["single instance", "one instance", "single node", "single replica"],
+            ["crash", "restart", "failure", "outage", "recover"]
+          ],
+          "acceptable_severities": ["high", "critical"]
+        }
+      ]
+    },
+    {
+      "case_id": "security-shared-admin-credential",
+      "description": "One long-lived shared admin credential used by every internal service, no per-service identity.",
+      "request": {
+        "review_id": "security-shared-admin-credential",
+        "title": "Shared administrative credential across internal services",
+        "problem_statement": "All internal services authenticate to the admin API using one long-lived shared credential stored in a common configuration file. There is no per-service identity or scoping, so any service holding the credential has full admin access.",
+        "proposed_solution": "Continue using the single shared admin credential across every internal service, and rotate it manually every 90 days.",
+        "affected_components": ["admin-api", "internal-services"]
+      },
+      "acceptable_decisions": ["request_changes"],
+      "expected_risks": [
+        {
+          "risk_id": "security-shared-credential-blast-radius",
+          "reviewer": "security",
+          "anchor_groups": [
+            ["shared credential", "shared secret", "single credential", "one credential"],
+            ["blast radius", "compromise", "privilege", "trust boundary", "full admin"]
+          ],
+          "acceptable_severities": ["high", "critical"]
+        }
+      ]
+    },
+    {
+      "case_id": "data-dual-write-without-reconciliation",
+      "description": "Order database and fulfillment queue written separately with no shared transaction or reconciliation.",
+      "request": {
+        "review_id": "data-dual-write-without-reconciliation",
+        "title": "Dual writes to order database and fulfillment queue",
+        "problem_statement": "Order creation writes to the primary order database and separately publishes a fulfillment event to a queue. There is no shared transaction and no reconciliation process if one write succeeds and the other fails.",
+        "proposed_solution": "Perform the two writes back to back in application code, without a transaction coordinator, a reconciliation job, or an idempotency key linking the two writes together.",
+        "affected_components": ["order-service", "fulfillment-queue"]
+      },
+      "acceptable_decisions": ["request_changes"],
+      "expected_risks": [
+        {
+          "risk_id": "data-dual-write-inconsistency",
+          "reviewer": "data",
+          "anchor_groups": [
+            ["dual write", "two writes", "separate writes", "two systems"],
+            ["reconciliation", "inconsistent", "inconsistency", "out of sync", "diverge"]
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "operability-no-rollback-or-diagnostics",
+      "description": "Direct-to-production deploys with no rollback path and no runtime logs or metrics.",
+      "request": {
+        "review_id": "operability-no-rollback-or-diagnostics",
+        "title": "Direct-to-production deployment pipeline",
+        "problem_statement": "The deployment pipeline pushes new versions directly to production. There is no rollback mechanism, no versioned release artifact, and no runtime logs or metrics exposed for the running service.",
+        "proposed_solution": "Deploy by overwriting the running process in place. If something goes wrong, redeploy the previous commit manually by re-running the build from source.",
+        "affected_components": ["deployment-pipeline"]
+      },
+      "acceptable_decisions": ["request_changes"],
+      "expected_risks": [
+        {
+          "risk_id": "operability-no-rollback",
+          "reviewer": "operability",
+          "anchor_groups": [
+            ["rollback", "revert", "roll back", "previous version"]
+          ],
+          "acceptable_severities": ["medium", "high", "critical"]
+        },
+        {
+          "risk_id": "operability-no-diagnostics",
+          "reviewer": "operability",
+          "anchor_groups": [
+            ["logs", "metrics", "diagnostics", "observability", "visibility"]
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "complexity-unjustified-microservice-split",
+      "description": "A simple read-only lookup split into five independently deployed services with no scaling or ownership need.",
+      "request": {
+        "review_id": "complexity-unjustified-microservice-split",
+        "title": "Splitting a simple product lookup into five microservices",
+        "problem_statement": "A read-only product-lookup capability with low, steady traffic and no independent scaling or team-ownership need is proposed as five separately deployed services, each communicating over its own network API, rather than one module.",
+        "proposed_solution": "Deploy five independent services (catalog-reader, price-reader, inventory-reader, aggregator, gateway), each with its own datastore connection and deployment pipeline, to look up and combine four fields for a single product page.",
+        "affected_components": ["catalog-reader", "price-reader", "inventory-reader", "aggregator", "gateway"]
+      },
+      "acceptable_decisions": ["request_changes", "approve_with_conditions"],
+      "expected_risks": [
+        {
+          "risk_id": "complexity-unjustified-distribution",
+          "reviewer": "complexity",
+          "anchor_groups": [
+            ["five services", "five microservices", "separate services", "distributed"],
+            ["unjustified", "unnecessary", "not justified", "low traffic", "no independent scaling"]
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "tradeoff-synchronous-cross-region-consistency",
+      "description": "Synchronous cross-region replication trades write latency and operational cost for stronger consistency.",
+      "request": {
+        "review_id": "tradeoff-synchronous-cross-region-consistency",
+        "title": "Synchronous cross-region replication for account balances",
+        "problem_statement": "Account balance writes must remain strongly consistent across two regions, so that a reader can never observe a stale balance after a regional failover. The two regions are geographically distant.",
+        "proposed_solution": "Require synchronous cross-region replication acknowledgement before confirming any balance write, accepting the added write latency and the additional operational coordination that synchronous cross-region replication introduces.",
+        "affected_components": ["balance-service"],
+        "alternatives_considered": ["Asynchronous replication with eventual consistency and a reconciliation job."]
+      },
+      "acceptable_decisions": ["approve_with_conditions", "request_changes"],
+      "expected_disagreements": [
+        {
+          "disagreement_id": "reliability-vs-complexity-sync-replication",
+          "reviewers": ["reliability", "complexity"],
+          "anchor_groups": [
+            ["synchronous", "sync replication", "cross-region", "cross region"]
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "healthy-stateless-internal-notification-service",
+      "description": "A bounded, stateless internal notification dispatcher with existing rollback and observability support.",
+      "request": {
+        "review_id": "healthy-stateless-internal-notification-service",
+        "title": "Stateless internal notification dispatch service",
+        "problem_statement": "An internal-only notification dispatch service needs to fan out low-volume event notifications to three existing internal downstream systems that already handle retries and deduplication.",
+        "proposed_solution": "Run a stateless service behind a load balancer with multiple interchangeable replicas, publishing to the existing internal message bus with at-least-once delivery; downstream systems already deduplicate by message ID. The service exposes health checks, structured logs, and standard deployment rollback through the existing platform pipeline.",
+        "affected_components": ["notification-dispatch-service"],
+        "constraints": ["Must use the existing internal message bus and deployment platform."]
+      },
+      "acceptable_decisions": ["approve", "approve_with_conditions"]
+    }
+  ]
+}
