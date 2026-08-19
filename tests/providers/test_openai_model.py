@@ -164,3 +164,13 @@ def test_constructor_validates_model_and_timeout() -> None:
 
     with pytest.raises(ValueError):
         OpenAIStructuredReviewModel(model="gpt-test", timeout_seconds=0)
+
+
+def test_constructor_translates_missing_credentials_into_value_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_ADMIN_KEY", raising=False)
+
+    with pytest.raises(ValueError):
+        OpenAIStructuredReviewModel(model="gpt-test")

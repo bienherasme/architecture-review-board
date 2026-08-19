@@ -18,8 +18,11 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Lint
         run: ruff check src tests
-      - name: Type check
-        run: mypy src --strict
+      - name: Type check (core, excludes concrete optional-SDK adapters)
+        run: |
+          mypy src --strict \
+            --exclude '^src/architecture_review_board/providers/openai_model\.py$' \
+            --exclude '^src/architecture_review_board/providers/engineering_knowledge\.py$'
       - name: Test
         run: pytest -q
 

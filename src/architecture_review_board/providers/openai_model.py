@@ -49,7 +49,7 @@ from __future__ import annotations
 import json
 from typing import TypeVar
 
-from openai import APIError, AsyncOpenAI
+from openai import APIError, AsyncOpenAI, OpenAIError
 from pydantic import BaseModel, ValidationError
 
 from architecture_review_board.model.base import (
@@ -121,7 +121,18 @@ class OpenAIStructuredReviewModel:
 
         self._model = model
         self._timeout_seconds = timeout_seconds
-        self._client = client if client is not None else AsyncOpenAI(api_key=api_key)
+        if client is not None:
+            self._client = client
+        else:
+            # AsyncOpenAI() itself raises openai.OpenAIError when it cannot
+            # resolve credentials (no api_key, no OPENAI_API_KEY). Callers
+            # outside this module, notably the CLI composition root, should
+            # not need the openai package importable just to catch that;
+            # ValueError is this adapter's own construction-error contract.
+            try:
+                self._client = AsyncOpenAI(api_key=api_key)
+            except OpenAIError as error:
+                raise ValueError(f"could not construct the OpenAI client: {error}") from error
 
     async def generate_specialist_review(
         self, request: SpecialistModelRequest

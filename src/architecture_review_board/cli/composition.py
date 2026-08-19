@@ -146,8 +146,6 @@ def build_architecture_review_service(config: ReviewRunConfig) -> ArchitectureRe
 
 def _build_openai_model(model_id: str) -> OpenAIStructuredReviewModel:
     try:
-        import openai
-
         from architecture_review_board.providers.openai_model import OpenAIStructuredReviewModel
     except ModuleNotFoundError as error:
         raise ConfigurationError(
@@ -156,7 +154,7 @@ def _build_openai_model(model_id: str) -> OpenAIStructuredReviewModel:
 
     try:
         return OpenAIStructuredReviewModel(model=model_id)
-    except openai.OpenAIError as error:
+    except ValueError as error:
         raise ConfigurationError(f"could not configure the OpenAI provider: {error}") from error
 
 
